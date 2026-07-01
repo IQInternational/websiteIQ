@@ -1,29 +1,111 @@
 import { Calendar, Clock, MapPin, Sparkles, Info, X } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Vines from './Vines';
-import schoolLogo from '../logo.png';
-import moeyLogo from '../moey.png';
 
 interface InvitationCardProps {
   grow: boolean;
   onRSVP: () => void;
-  rsvpCount: number;
   hasRSVP: boolean;
   leftPhotoUrl?: string;
   rightPhotoUrl?: string;
 }
 
+// Confetti particle
+interface Particle {
+  x: number; y: number;
+  vx: number; vy: number;
+  color: string;
+  size: number;
+  rotation: number;
+  rotationSpeed: number;
+  opacity: number;
+  shape: 'rect' | 'circle';
+}
+
+const COLORS = ['#d4a853', '#e4c87a', '#f5e6c8', '#c9953a', '#fff', '#f8c93a', '#ff6b6b', '#6bcbf8', '#a8e6a3'];
+
+function useConfetti() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const particles = useRef<Particle[]>([]);
+  const rafRef = useRef<number>(0);
+
+  const launch = useCallback((originX: number, originY: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    particles.current = Array.from({ length: 120 }, () => {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 4 + Math.random() * 8;
+      return {
+        x: originX,
+        y: originY,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 4,
+        color: COLORS[Math.floor(Math.random() * COLORS.length)],
+        size: 5 + Math.random() * 6,
+        rotation: Math.random() * Math.PI * 2,
+        rotationSpeed: (Math.random() - 0.5) * 0.3,
+        opacity: 1,
+        shape: Math.random() > 0.4 ? 'rect' : 'circle',
+      };
+    });
+
+    const tick = () => {
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      particles.current = particles.current.filter(p => p.opacity > 0.02);
+
+      for (const p of particles.current) {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.25;
+        p.vx *= 0.99;
+        p.rotation += p.rotationSpeed;
+        p.opacity -= 0.012;
+
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, p.opacity);
+        ctx.fillStyle = p.color;
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rotation);
+        if (p.shape === 'circle') {
+          ctx.beginPath();
+          ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+        }
+        ctx.restore();
+      }
+
+      if (particles.current.length > 0) {
+        rafRef.current = requestAnimationFrame(tick);
+      }
+    };
+
+    cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(tick);
+  }, []);
+
+  useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
+
+  return { canvasRef, launch };
+}
+
 export default function InvitationCard({
   grow,
   onRSVP,
-  rsvpCount,
   hasRSVP,
-  leftPhotoUrl = schoolLogo,
-  rightPhotoUrl = moeyLogo
+  leftPhotoUrl = "/logo.png",
+  rightPhotoUrl = "/moeys.png"
 }: InvitationCardProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showInfo, setShowInfo] = useState(false);
   const sequence = ['A', 'B', 'C', 'D', 'E'];
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const { canvasRef, launch } = useConfetti();
 
   useEffect(() => {
     if (!grow) return;
@@ -32,6 +114,20 @@ export default function InvitationCard({
     }, 1800);
     return () => clearInterval(loopInterval);
   }, [grow]);
+
+  const handleRSVP = () => {
+    if (hasRSVP) return;
+    onRSVP();
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const cx = rect.left + rect.width / 2 - canvas.getBoundingClientRect().left;
+        const cy = rect.top + rect.height / 2 - canvas.getBoundingClientRect().top;
+        launch(cx, cy);
+      }
+    }
+  };
 
   const getMorphStyle = (index: number) => {
     let baseStyles = "inline-block font-sans font-black italic text-center transition-all duration-500 drop-shadow-[0_2px_10px_rgba(212,163,89,0.3)]";
@@ -54,9 +150,9 @@ export default function InvitationCard({
     } else {
       switch (index) {
         case 0: return `${baseStyles} opacity-100 scale-100 blur-0 translate-y-0 ease-out`;
-        case 1: return `${baseStyles} opacity-100 scale-110 rotate-0 cubic-bezier(0.34,1.56,0.64,1)`;
-        case 2: return `${baseStyles} opacity-100 w-auto animate-[typing_0.4s_steps(4)_forwards]`;
-        case 3: return `${baseStyles} opacity-100 translate-x-0 rotate-0 cubic-bezier(0.16,1,0.3,1)`;
+        case 1: return `${baseStyles} opacity-100 scale-110 rotate-0`;
+        case 2: return `${baseStyles} opacity-100 w-auto`;
+        case 3: return `${baseStyles} opacity-100 translate-x-0 rotate-0`;
         case 4: return `${baseStyles} opacity-100 scale-100 filter brightness-100 duration-300`;
         default: return baseStyles;
       }
@@ -65,11 +161,18 @@ export default function InvitationCard({
 
   return (
     <>
+    {/* Full-screen confetti canvas */}
+    <canvas
+      ref={canvasRef}
+      className="fixed inset-0 pointer-events-none z-[100]"
+      width={typeof window !== 'undefined' ? window.innerWidth : 400}
+      height={typeof window !== 'undefined' ? window.innerHeight : 800}
+    />
+
     <div
       className="relative w-full max-w-[360px] md:max-w-[400px] aspect-[210/297] animate-card-rise block box-border"
       style={{ animationDelay: '0.2s', opacity: 0, animationFillMode: 'forwards' }}
     >
-      {/* Premium Metallic Gold Ambient Glow behind the card - reduced intensity */}
       <div
         className="absolute -inset-2 rounded-ios-lg pointer-events-none"
         style={{
@@ -79,25 +182,20 @@ export default function InvitationCard({
         }}
       />
 
-      {/* MAIN INVITE CARD: Clean White Plate with Gold Frame */}
       <div className="bg-white rounded-ios-lg relative w-full h-full overflow-hidden flex flex-col justify-between box-border shadow-[0_24px_64px_rgba(0,0,0,0.5)]">
-        {/* Gold frame border */}
+        {/* Gold frame */}
         <div className="absolute inset-0 rounded-ios-lg pointer-events-none">
           <div className="absolute inset-0 rounded-ios-lg border-[6px]" style={{ borderImage: 'linear-gradient(135deg, #d4a853 0%, #c9953a 30%, #b8860b 50%, #c9953a 70%, #d4a853 100%) 1' }} />
           <div className="absolute inset-[5px] rounded-[7px] bg-white" />
         </div>
         <div className="absolute inset-[6px] rounded-[6px] border-2 border-[#d4a853]/60 pointer-events-none" />
 
-        {/* Symmetrical glowing vines flanking the content sides */}
         <Vines grow={grow} />
 
-        {/* Content Container with proper padding */}
         <div className="relative text-center w-full h-full flex flex-col justify-between items-center z-10 select-none py-6 px-5">
 
-          {/* TOP SECTION: Photo Slots + National Motto */}
+          {/* TOP SECTION */}
           <div className="w-full relative flex flex-col items-center shrink-0">
-
-            {/* Top Most-Left Polaroid-style Frame - Logo */}
             <div
               className="absolute left-0 top-0 w-16 h-16 sm:w-20 sm:h-20 bg-[#f8f5f0] p-1.5 rounded shadow-2xl border-2 border-[#d4a853]/40 -rotate-6 transition-all duration-700 overflow-hidden"
               style={{ opacity: grow ? 1 : 0, transform: grow ? 'rotate(-6deg) translateY(0)' : 'rotate(-6deg) translateY(-10px)' }}
@@ -107,7 +205,6 @@ export default function InvitationCard({
               </div>
             </div>
 
-            {/* Top Most-Right Polaroid-style Frame - MoEYS */}
             <div
               className="absolute right-0 top-0 w-16 h-16 sm:w-20 sm:h-20 bg-[#f8f5f0] p-1.5 rounded shadow-2xl border-2 border-[#d4a853]/40 rotate-6 transition-all duration-700 overflow-hidden"
               style={{ opacity: grow ? 1 : 0, transform: grow ? 'rotate(6deg) translateY(0)' : 'rotate(6deg) translateY(-10px)', transitionDelay: '0.1s' }}
@@ -117,7 +214,6 @@ export default function InvitationCard({
               </div>
             </div>
 
-            {/* Gold Accent Sparkle Separator */}
             <div
               className="flex items-center justify-center gap-3 mb-2 transition-all duration-700 mt-12"
               style={{ opacity: grow ? 1 : 0, transitionDelay: '0.4s' }}
@@ -127,7 +223,6 @@ export default function InvitationCard({
               <div className="h-px w-10 bg-gradient-to-l from-transparent to-[#dfbe8c]/50" />
             </div>
 
-            {/* Kingdom Typography Header */}
             <div
               className="font-display font-bold text-[#5a4a3a] space-y-1 text-center transition-all duration-700 text-[13px] md:text-[14px] tracking-wide antialiased"
               style={{ opacity: grow ? 1 : 0, transform: grow ? 'translateY(0)' : 'translateY(4px)', transitionDelay: '0.6s' }}
@@ -137,18 +232,14 @@ export default function InvitationCard({
             </div>
           </div>
 
-          {/* MIDDLE SECTION: Elegant Khmer Invitation Typography */}
+          {/* MIDDLE SECTION */}
           <div className="w-full flex flex-col gap-4 px-2 my-auto justify-center items-center">
             <div
               className="font-display font-bold text-[#4a3a2a] transition-all duration-700 leading-[1.6] flex flex-col gap-1 items-center w-full text-[17px] md:text-[19px] tracking-wide"
               style={{ opacity: grow ? 1 : 0, transform: grow ? 'translateY(0)' : 'translateY(4px)', transitionDelay: '0.8s' }}
             >
-              <p className="drop-shadow-[0_1px_3px_rgba(0,0,0,0.12)]">
-                សូមគោរពអញ្ចើញលោកគ្រូ
-              </p>
-              <p className="drop-shadow-[0_1px_3px_rgba(0,0,0,0.12)]">
-                អ្នកគ្រូដើម្បីចូលរួមប្រារព្ធ
-              </p>
+              <p className="drop-shadow-[0_1px_3px_rgba(0,0,0,0.12)]">សូមគោរពអញ្ចើញលោកគ្រូ</p>
+              <p className="drop-shadow-[0_1px_3px_rgba(0,0,0,0.12)]">អ្នកគ្រូដើម្បីចូលរួមប្រារព្ធ</p>
             </div>
 
             <h1
@@ -169,12 +260,7 @@ export default function InvitationCard({
                     <span
                       key={letter}
                       className={getMorphStyle(idx)}
-                      style={{
-                        position: 'absolute',
-                        left: 0,
-                        bottom: '-0.05em',
-                        width: '100%',
-                      }}
+                      style={{ position: 'absolute', left: 0, bottom: '-0.05em', width: '100%' }}
                     >
                       {letter}
                     </span>
@@ -184,7 +270,7 @@ export default function InvitationCard({
             </h2>
           </div>
 
-          {/* LOWER SECTION: Event Information Blocks & RSVP Button */}
+          {/* LOWER SECTION */}
           <div className="w-full flex flex-col items-center shrink-0">
             <div
               className="flex items-center justify-center gap-2.5 mb-3 transition-all duration-700 w-full"
@@ -195,7 +281,6 @@ export default function InvitationCard({
               <div className="h-px w-12 bg-gradient-to-l from-transparent to-[#dfbe8c]/30" />
             </div>
 
-            {/* Event Details */}
             <div
               className="flex flex-row justify-between items-start w-full mb-4 transition-all duration-700 px-1 gap-2"
               style={{ opacity: grow ? 1 : 0, transform: grow ? 'translateY(0)' : 'translateY(6px)', transitionDelay: '1.5s' }}
@@ -205,14 +290,14 @@ export default function InvitationCard({
               <DetailItem icon={<MapPin className="w-4 h-4" />} label="ទីតាំង" value="សាលប្រជុំ" />
             </div>
 
-            {/* RSVP Button Row */}
             <div
               className="transition-all duration-700 w-full flex flex-col items-center"
               style={{ opacity: grow ? 1 : 0, transform: grow ? 'translateY(0)' : 'translateY(4px)', transitionDelay: '1.8s' }}
             >
               <div className="flex items-center gap-2 w-full max-w-[280px]">
                 <button
-                  onClick={onRSVP}
+                  ref={buttonRef}
+                  onClick={handleRSVP}
                   disabled={hasRSVP}
                   className={`relative overflow-hidden rounded-full flex-1 py-2.5 font-ios font-semibold text-white text-sm tracking-wide shadow-[0_4px_24px_rgba(184,144,83,0.35)] transition-all active:scale-[0.97] ${
                     hasRSVP
@@ -237,7 +322,6 @@ export default function InvitationCard({
                   </span>
                 </button>
 
-                {/* Info Button */}
                 <button
                   onClick={() => setShowInfo(true)}
                   className="w-10 h-10 rounded-full bg-gradient-to-r from-[#c9953a] to-[#d4a853] flex items-center justify-center shadow-[0_4px_16px_rgba(184,144,83,0.3)] transition-all hover:from-[#d4a853] hover:to-[#e4b863] active:scale-95"
@@ -245,11 +329,6 @@ export default function InvitationCard({
                   <Info className="w-5 h-5 text-white" />
                 </button>
               </div>
-              <p className="mt-2 text-xs text-[#8a7a6a] font-ios text-center font-medium tracking-normal">
-                {rsvpCount > 0
-                  ? `ចំនួនអ្នកចូលរួម : ${rsvpCount}`
-                  : 'រង់ចាំការអញ្ជើញ...'}
-              </p>
             </div>
           </div>
 
@@ -264,7 +343,6 @@ export default function InvitationCard({
         onClick={() => setShowInfo(false)}
       >
         <div className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]" />
-
         <div
           className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-[popIn_0.3s_cubic-bezier(0.34,1.56,0.64,1)]"
           onClick={(e) => e.stopPropagation()}
@@ -275,24 +353,20 @@ export default function InvitationCard({
           >
             <X className="w-4 h-4 text-gray-600" />
           </button>
-
           <div className="mb-4">
             <h2 className="text-xl font-bold text-[#5a4a3a] mb-1 font-display">បដិសណ្ឋារកិច្ច</h2>
             <div className="h-1 w-16 bg-gradient-to-r from-[#c9953a] to-[#d4a853] rounded-full" />
           </div>
-
           <div className="space-y-4 text-[#6a5a4a] font-display">
             <p className="leading-relaxed text-sm">
               សូមគោរពអញ្ចើញ គណៈគ្រប់គ្រងសាលាអន្តរជាតិអាយឃ្យូ លោកគ្រូ អ្នកគ្រូ និង សិស្សានុសិស្ស គ្រប់បណ្ដាថ្នាក់ទី១២ ឆ្នាំសិក្សា២០២៥-២០២៦ ក្នុងការចូលរួមកម្មវិធីរំលឹកគុណគ្រូ
             </p>
-
             <div className="bg-[#f8f5f0] rounded-lg p-4 border border-[#d4a853]/20">
               <p className="text-sm text-[#8a7a6a]">
                 <strong className="text-[#5a4a3a]"></strong> សូមមេត្តាអធ្យាស្រ័យចំពោះការខ្វះខាត ឬកំហុសឆ្គងដោយអចេតនាមួយចំនួនដែលបានកើតឡើង។
               </p>
             </div>
           </div>
-
           <div className="mt-6 pt-4 border-t border-gray-100">
             <button
               onClick={() => setShowInfo(false)}
@@ -314,12 +388,8 @@ function DetailItem({ icon, label, value }: { icon: React.ReactNode; label: stri
       <div className="w-8 h-8 rounded-full bg-[#f5f0e8] border border-[#dec4a1]/30 flex items-center justify-center text-[#9a7b4f] flex-shrink-0 shadow-inner">
         {icon}
       </div>
-      <p className="text-[11px] text-[#8a7a6a] font-display font-bold leading-none mt-1">
-        {label}
-      </p>
-      <p className="text-xs font-semibold text-[#4a3a2a] font-display leading-tight max-w-full truncate mt-0.5 drop-shadow-[0_1px_2px_rgba(0,0,0,0.1)]">
-        {value}
-      </p>
+      <p className="text-[11px] text-[#8a7a6a] font-display font-bold leading-none mt-1">{label}</p>
+      <p className="text-xs font-semibold text-[#4a3a2a] font-display leading-tight max-w-full truncate mt-0.5 drop-shadow-[0_1px_2px_rgba(0,0,0,0.1)]">{value}</p>
     </div>
   );
 }
