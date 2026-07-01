@@ -21,8 +21,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # THIS STEP WILL SHOW YOU THE FOLDER STRUCTURE
-      - name: List files (Debugging)
+      - name: List all files (Debugging)
         run: ls -R
 
       - name: Setup Node.js
