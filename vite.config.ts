@@ -1,10 +1,8 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// https://vitejs.dev/config/
-// vite.config.ts
 export default defineConfig({
   plugins: [react()],
-  // Try changing './' to the absolute path starting with a slash
+  // Vite uses this to automatically rewrite your /assets/ paths to ./assets/ or /IQTeacherDay/assets/
   base: '/IQTeacherDay/', 
 })
