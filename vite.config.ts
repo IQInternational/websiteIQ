@@ -2,10 +2,9 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // https://vitejs.dev/config/
+// vite.config.ts
 export default defineConfig({
   plugins: [react()],
-  base: '/IQTeacherDay/',
-  optimizeDeps: {
-    exclude: ['lucide-react'],
-  },
+  // Try changing './' to the absolute path starting with a slash
+  base: '/IQTeacherDay/', 
 })
