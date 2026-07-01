@@ -1,6 +1,8 @@
 import { Calendar, Clock, MapPin, Sparkles, Info, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import Vines from './Vines';
+import schoolLogo from '../logo.png';
+import moeyLogo from '../moey.png';
 
 interface InvitationCardProps {
   grow: boolean;
@@ -16,8 +18,8 @@ export default function InvitationCard({
   onRSVP,
   rsvpCount,
   hasRSVP,
-  leftPhotoUrl = "/logo.png",
-  rightPhotoUrl = "/moeys.png"
+  leftPhotoUrl = schoolLogo,
+  rightPhotoUrl = moeyLogo
 }: InvitationCardProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showInfo, setShowInfo] = useState(false);
@@ -244,10 +246,10 @@ export default function InvitationCard({
                 </button>
               </div>
               <p className="mt-2 text-xs text-[#8a7a6a] font-ios text-center font-medium tracking-normal">
-  {rsvpCount > 0 
-    ? `ចំនួនអ្នកចូលរួម : ${rsvpCount}` 
-    : 'រង់ចាំការអញ្ជើញ...'}
-</p>
+                {rsvpCount > 0
+                  ? `ចំនួនអ្នកចូលរួម : ${rsvpCount}`
+                  : 'រង់ចាំការអញ្ជើញ...'}
+              </p>
             </div>
           </div>
 
